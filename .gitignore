@@ -1,0 +1,14 @@
+# Data
+data_tro/
+
+# Model
+1DCNN_TRO/checkpoints/
+FCModulize_TRO/model/
+
+# Results
+1DCNN_TRO/result/
+FCModulize_TRO/result/
+
+# Wandb
+1DCNN_TRO/wandb/
+FCModulize_TRO/wandb/

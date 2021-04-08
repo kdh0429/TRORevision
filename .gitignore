@@ -12,3 +12,6 @@ FCModulize_TRO/result/
 # Wandb
 1DCNN_TRO/wandb/
 FCModulize_TRO/wandb/
+
+# Offline Experiment
+Offline_Experiment_TRO/

@@ -12,12 +12,6 @@ import math
  
 start_time = time.time()
 
-args_wandb = dict(
-    batch_size = 100,
-    hidden_neuron = 15,
-    cross_entropy_weight = 1.0
-    )
-
 # Parameters
 def str2bool(v):
     if isinstance(v, bool):
@@ -33,9 +27,8 @@ parser.add_argument('--use_wandb', type=str2bool, default=True) # Use Logging to
 parser.add_argument('--use_gpu', type=str2bool, default=False) # Use GPU
 parser.add_argument('--use_narrow_structure', type=str2bool, default=False) # Use half hidden neuron as layer goes deeper
 parser.add_argument('--use_ee_acc_data', type=str2bool, default=False) # Use end effector acceleration data
-parser.add_argument('--use_tf_record', type=str2bool, default=False) # Use tf record format for large data
 parser.add_argument('--learning_rate', type=float, default=0.00001) # Learning rate
-parser.add_argument('--training_epoch', type=int, default=10) # Training epoch
+parser.add_argument('--training_epoch', type=int, default=500) # Training epoch
 parser.add_argument('--batch_size', type=int, default=1000) # Size of batch
 parser.add_argument('--drop_out_rate', type=float, default=0.0) # Drop out rate
 parser.add_argument('--regularization_factor', type=float, default=0.0000001) # Regularization
@@ -48,7 +41,7 @@ args = parser.parse_args()
 # Init wandb
 wandb_use = args.use_wandb  
 if wandb_use == True:
-    wandb.init(project="TRO", tensorboard=False, config= args_wandb)
+    wandb.init(project="TRO", tensorboard=False)
 
 # Number of Input/Output Data
 time_step = 5
@@ -204,7 +197,7 @@ class Model:
 
             # define cost/loss & optimizer
             self.l2_reg = sum(tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.REGULARIZATION_LOSSES))
-            self.cost = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(labels=self.Y, logits=self.logits, pos_weight=self.cross_entropy_weight))
+            self.cost = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(labels=self.Y, logits=self.logits, pos_weight=cross_entropy_weight))
 
             self.update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(self.update_ops):
@@ -214,12 +207,12 @@ class Model:
         self.correct_prediction = tf.equal(self.prediction, tf.argmax(self.Y, 1))
         self.accuracy = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
-    def get_mean_error_hypothesis(self, x_test, y_test, drop_out_rate=0.0, is_train=False, cross_entropy_weight=1.0):
-        return self.sess.run([self.accuracy,  self.l2_reg, self.cost, self.hypothesis], feed_dict={self.X: x_test, self.Y: y_test, self.drop_out_rate: drop_out_rate, self.is_train: is_train, self.cross_entropy_weight: cross_entropy_weight})
+    def get_mean_error_hypothesis(self, x_test, y_test, drop_out_rate=0.0, is_train=False):
+        return self.sess.run([self.accuracy,  self.l2_reg, self.cost, self.hypothesis], feed_dict={self.X: x_test, self.Y: y_test, self.drop_out_rate: drop_out_rate, self.is_train: is_train})
 
-    def train(self, x_data, y_data, drop_out_rate=0.0, is_train=True, cross_entropy_weight=1.0):
+    def train(self, x_data, y_data, drop_out_rate=0.0, is_train=True):
         return self.sess.run([self.accuracy, self.l2_reg, self.cost, self.optimizer], feed_dict={
-            self.X: x_data, self.Y: y_data, self.drop_out_rate: drop_out_rate, self.is_train: is_train, self.cross_entropy_weight: cross_entropy_weight})
+            self.X: x_data, self.Y: y_data, self.drop_out_rate: drop_out_rate, self.is_train: is_train})
 
     def get_hidden_number(self):
         return [self.hidden_layers, self.hidden_neurons]
@@ -242,33 +235,31 @@ if wandb_use == True:
     wandb.config.cross_entropy_weight = cross_entropy_weight
     wandb.config.use_narrow_structure = args.use_narrow_structure
 
-# When Using tfrecord
-if args.use_tf_record is True:
-    # Load Training Data with tf.data
-    def parse_proto(example_proto):
-        features = {
-            'X': tf.compat.v1.FixedLenFeature((num_input,), tf.float32),
-            'y': tf.compat.v1.FixedLenFeature((num_output,), tf.float32),
-        }
-        parsed_features = tf.compat.v1.parse_single_example(example_proto, features)
-        return parsed_features['X'], parsed_features['y']
-    TrainData = tf.data.TFRecordDataset(["../data_tro/TrainingData4Cut.tfrecord"])
-    TrainData = TrainData.shuffle(buffer_size=100*batch_size)
-    TrainData = TrainData.map(parse_proto)
-else:
-    # Load Training Data in Memory
-    TrainDataRaw = pd.read_parquet('../data_tro/SingleProcessed/TrainingData4.parquet').to_numpy().astype('float32')
-    TrainData = tf.data.Dataset.from_tensor_slices((TrainDataRaw[:,0:num_input], TrainDataRaw[:,-num_output:]))
-    TrainData = TrainData.shuffle(buffer_size=100*batch_size)
+# Load Training Data in Memory
+TrainDataRaw = pd.read_parquet('../data_tro/SingleRobotProcessed/TrainingData1.parquet').to_numpy().astype('float32')
+TrainData = tf.data.Dataset.from_tensor_slices((TrainDataRaw[:,0:num_input], TrainDataRaw[:,-num_output:]))
+TrainData = TrainData.shuffle(buffer_size=100*batch_size)
 TrainData = TrainData.batch(batch_size)
 TrainData = TrainData.prefetch(buffer_size=1)
 Trainiterator = tf.compat.v1.data.make_initializable_iterator(TrainData)
 train_batch_x, train_batch_y = Trainiterator.get_next()
 
 # Load Validation Data in Memory
-ValidationData = pd.read_parquet('../data_tro/SingleProcessed/ValidationData4.parquet').to_numpy().astype('float32')
+ValidationData = pd.read_parquet('../data_tro/SingleRobotProcessed/ValidationData1.parquet').to_numpy().astype('float32')
 X_validation = ValidationData[:,0:num_input]
 Y_validation = ValidationData[:,-num_output:]
+
+# Load Test Data
+TestData = pd.read_parquet('../data_tro/SingleRobotProcessed/TestingDataCollision1.parquet').to_numpy().astype('float32')
+X_Test = TestData[:,0:num_input]
+Y_Test = TestData[:,-num_output:]
+JTS = TestData[:,num_input]
+DOB = TestData[:,num_input+1]
+
+# Load Test Free Data
+TestDataFree = pd.read_parquet('../data_tro/SingleRobotProcessed/TestingDataFree1.parquet').to_numpy().astype('float32')
+X_TestFree = TestDataFree[:,0:num_input]
+Y_TestFree = TestDataFree[:,-num_output:]
 
 # Train Model
 # Logging: To Scale wandb Charts
@@ -300,7 +291,7 @@ for epoch in range(training_epochs):
         try:
             x,y = sess.run([train_batch_x, train_batch_y])
             if (x.shape[0]==batch_size):
-                accu, reg_c, cost,_ = m1.train(x, y, drop_out_rate=drop_out_rate, is_train=True, cross_entropy_weight=cross_entropy_weight)
+                accu, reg_c, cost,_ = m1.train(x, y, drop_out_rate)
                 train_batch_num = train_batch_num + 1
                 accu_train = ((train_batch_num-1)*accu_train + accu )/ train_batch_num
                 reg_train = ((train_batch_num-1)*reg_train + reg_c )/ train_batch_num
@@ -314,6 +305,56 @@ for epoch in range(training_epochs):
     print('Train Cost =', '{:.9f}'.format(cost_train), 'Train Regul =', '{:.9f}'.format(reg_train))
     print('Validation Cost =', '{:.9f}'.format(cost_val), 'Validation Regul =', '{:.9f}'.format(reg_val))
 
+    if ((epoch % test_every) == 0 or (epoch == training_epochs - 1)):
+        # Test Evaluation
+        accu_test, reg_test, cost_test, hypo  = m1.get_mean_error_hypothesis(X_Test, Y_Test)
+        prediction = np.argmax(hypo, 1)
+        t = np.arange(0,0.001*len(prediction),0.001)
+        print('------------------Test--------------------')
+        print('Test Accuracy: ', accu_test)
+        print('Test Cost: ', cost_test)
+
+        collision_pre = 0
+        collision_cnt = 0
+        collision_time = 0
+        detection_time_NN = []
+        collision_status = False
+        NN_detection = False
+        collision_fail_cnt_NN = 0
+
+        for i in range(len(prediction)):
+            if (Y_Test[i,0] == 1 and collision_pre == 0):
+                collision_cnt = collision_cnt +1
+                collision_time = t[i]
+                collision_status = True
+                NN_detection = False
+            
+            if (collision_status == True and NN_detection == False):
+                if(hypo[i,0] > test_threshold):
+                    NN_detection = True
+                    detection_time_NN.append(t[i] - collision_time)
+
+            if (Y_Test[i,0] == 0 and collision_pre == 1):
+                collision_status = False
+                if(NN_detection == False):
+                    detection_time_NN.append(0.0)
+                    collision_fail_cnt_NN = collision_fail_cnt_NN+1
+            collision_pre = Y_Test[i,0]
+
+        print('Total collision: ', collision_cnt)
+        print('NN Failure: ', collision_fail_cnt_NN)
+        print('NN Detection Time: ', sum(detection_time_NN)/(collision_cnt - collision_fail_cnt_NN))
+
+        # Free motion Evaluation
+        accu_test, reg_test, cost_test, hypofree  = m1.get_mean_error_hypothesis(X_TestFree, Y_TestFree)
+        false_positive_local_arr = np.zeros((len(Y_TestFree),1))
+        for j in range(len(false_positive_local_arr)):
+            false_positive_local_arr[j] = hypofree[j,0] > test_threshold and np.equal(np.argmax(Y_TestFree[j,:]), 1)
+        print('False Positive: ', sum(false_positive_local_arr))
+        print('Total Num: ', len(Y_TestFree))
+        test_result.append([sum(detection_time_NN)/(collision_cnt - collision_fail_cnt_NN), sum(false_positive_local_arr)])
+        print('-----------------------------------------------------------------')
+
     # Log to wandb
     if wandb_use == True:
         wandb_dict = dict()
@@ -323,75 +364,23 @@ for epoch in range(training_epochs):
         wandb_dict['Training Reg'] = reg_train
         wandb_dict['Validation Cost'] = cost_val
         wandb_dict['Validation Reg'] = reg_val
+        if ((epoch % test_every) == 0 or (epoch == training_epochs - 1)):
+            wandb_dict['NN Failure'] = collision_fail_cnt_NN
+            wandb_dict['NN Detection Time'] = sum(detection_time_NN)/(collision_cnt - collision_fail_cnt_NN)
+            wandb_dict['False Positive'] = sum(false_positive_local_arr)
         wandb.log(wandb_dict)
 
-# Load Test Data
-TestData = pd.read_parquet('../data_tro/SingleProcessed/TestingDataCollision4.parquet').to_numpy().astype('float32')
-X_Test = TestData[:,0:num_input]
-Y_Test = TestData[:,-num_output:]
-JTS = TestData[:,num_input]
-DOB = TestData[:,num_input+1]
-
-# Load Test Free Data
-TestDataFree = pd.read_parquet('../data_tro/SingleProcessed/TestingDataFree4.parquet').to_numpy().astype('float32')
-X_TestFree = TestDataFree[:,0:num_input]
-Y_TestFree = TestDataFree[:,-num_output:]
-
-# Test Evaluation
-accu_test, reg_test, cost_test, hypo  = m1.get_mean_error_hypothesis(X_Test, Y_Test)
-prediction = np.argmax(hypo, 1)
-t = np.arange(0,0.001*len(prediction),0.001)
-print('------------------Test--------------------')
-print('Test Accuracy: ', accu_test)
-print('Test Cost: ', cost_test)
-
-collision_pre = 0
-collision_cnt = 0
-collision_time = 0
-detection_time_NN = []
-collision_status = False
-NN_detection = False
-collision_fail_cnt_NN = 0
-
-for i in range(len(prediction)):
-    if (Y_Test[i,0] == 1 and collision_pre == 0):
-        collision_cnt = collision_cnt +1
-        collision_time = t[i]
-        collision_status = True
-        NN_detection = False
-    
-    if (collision_status == True and NN_detection == False):
-        if(hypo[i,0] > test_threshold):
-            NN_detection = True
-            detection_time_NN.append(t[i] - collision_time)
-
-    if (Y_Test[i,0] == 0 and collision_pre == 1):
-        collision_status = False
-        if(NN_detection == False):
-            detection_time_NN.append(0.0)
-            collision_fail_cnt_NN = collision_fail_cnt_NN+1
-    collision_pre = Y_Test[i,0]
-
-print('Total collision: ', collision_cnt)
-print('NN Failure: ', collision_fail_cnt_NN)
-print('NN Detection Time: ', sum(detection_time_NN)/(collision_cnt - collision_fail_cnt_NN))
-
-# Free motion Evaluation
-accu_test, reg_test, cost_test, hypofree  = m1.get_mean_error_hypothesis(X_TestFree, Y_TestFree)
-false_positive_local_arr = np.zeros((len(Y_TestFree),1))
-for j in range(len(false_positive_local_arr)):
-    false_positive_local_arr[j] = hypofree[j,0] > test_threshold and np.equal(np.argmax(Y_TestFree[j,:]), 1)
-print('False Positive: ', sum(false_positive_local_arr))
-print('Total Num: ', len(Y_TestFree))
-test_result.append([sum(detection_time_NN)/(collision_cnt - collision_fail_cnt_NN), sum(false_positive_local_arr)])
-
-# Log to wandb
-if wandb_use == True:
-    wandb_dict = dict()
-    wandb_dict['NN Detection Time'] = sum(detection_time_NN)/(collision_cnt - collision_fail_cnt_NN)
-    wandb_dict['False Positive'] = sum(false_positive_local_arr)
-    wandb.log(wandb_dict)
+np.savetxt('result/test_result.csv',np.array(test_result),delimiter=",")
 
 elapsed_time = time.time() - start_time
 print(elapsed_time)
 print('Learning Finished!')
+
+# Save Model
+saver = tf.compat.v1.train.Saver()
+model_file_name = 'model/' + 'num_input_' + str(num_input) + '_' + str(int(time.time())) + '.ckpt'
+saver.save(sess, model_file_name)
+
+if wandb_use == True:
+    saver.save(sess, os.path.join(wandb.run.dir, model_file_name))
+    wandb.config.elapsed_time = elapsed_time

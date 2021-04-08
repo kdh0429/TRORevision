@@ -29,7 +29,6 @@ parser.add_argument('--use_wandb', type=str2bool, default=True) # Use Logging to
 parser.add_argument('--use_gpu', type=str2bool, default=True) # Use GPU
 parser.add_argument('--use_narrow_structure', type=str2bool, default=False) # Use half hidden neuron as layer goes deeper
 parser.add_argument('--use_ee_acc_data', type=str2bool, default=False) # Use end effector acceleration data
-parser.add_argument('--use_tf_record', type=str2bool, default=False) # Use tf record format for large data
 parser.add_argument('--learning_rate', type=float, default=0.00001) # Learning rate
 parser.add_argument('--training_epoch', type=int, default=500) # Training epoch
 parser.add_argument('--batch_size', type=int, default=1000) # Size of batch
@@ -196,24 +195,10 @@ if wandb_use == True:
     wandb.config.cross_entropy_weight = cross_entropy_weight
     wandb.config.use_narrow_structure = args.use_narrow_structure
 
-# When Using tfrecord
-if args.use_tf_record is True:
-    # Load Training Data with tf.data
-    def parse_proto(example_proto):
-        features = {
-            'X': tf.compat.v1.FixedLenFeature((num_input,), tf.float32),
-            'y': tf.compat.v1.FixedLenFeature((num_output,), tf.float32),
-        }
-        parsed_features = tf.compat.v1.parse_single_example(example_proto, features)
-        return parsed_features['X'], parsed_features['y']
-    TrainData = tf.data.TFRecordDataset(["../data_tro/TrainingData4Cut.tfrecord"])
-    TrainData = TrainData.shuffle(buffer_size=100*batch_size)
-    TrainData = TrainData.map(parse_proto)
-else:
-    # Load Training Data in Memory
-    TrainDataRaw = pd.read_parquet('../data_tro/TrainingData4.parquet').to_numpy().astype('float32')
-    TrainData = tf.data.Dataset.from_tensor_slices((TrainDataRaw[:,0:num_input], TrainDataRaw[:,-num_output:]))
-    TrainData = TrainData.shuffle(buffer_size=100*batch_size)
+# Load Training Data in Memory
+TrainDataRaw = pd.read_parquet('../data_tro/SingleRobotProcessed/TrainingData4.parquet').to_numpy().astype('float32')
+TrainData = tf.data.Dataset.from_tensor_slices((TrainDataRaw[:,0:num_input], TrainDataRaw[:,-num_output:]))
+TrainData = TrainData.shuffle(buffer_size=100*batch_size)
 TrainData = TrainData.batch(batch_size)
 TrainData = TrainData.prefetch(buffer_size=1)
 Trainiterator = tf.compat.v1.data.make_initializable_iterator(TrainData)

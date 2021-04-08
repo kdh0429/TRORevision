@@ -33,7 +33,7 @@ drop_out_rate = graph1.get_tensor_by_name("drop_out_rate:0")
 is_train1 = graph1.get_tensor_by_name("is_train:0")
 hypothesis1 = graph1.get_tensor_by_name("ConcatenateNet/hypothesis:0")
 
-file_name = '../data_tro/TestingDataCollision1.parquet'
+file_name = '../data_tro/SingleRobotProcessed/TestingDataCollision1.parquet'
 TestData = pd.read_parquet(file_name).to_numpy().astype('float32')
 X_Test = TestData[:,0:num_input]
 Y_Test = TestData[:,-num_output:]
@@ -41,7 +41,7 @@ JTS = TestData[:,num_input]
 DOB = TestData[:,num_input+1]
 hypo1  =  sess1.run(hypothesis1, feed_dict={x1: X_Test, drop_out_rate: 0.0, is_train1:False})
 
-file_name = '../data_tro/TestingDataFree1.parquet'
+file_name = '../data_tro/SingleRobotProcessed/TestingDataFree1.parquet'
 TestDataFree = pd.read_parquet(file_name).to_numpy().astype('float32')
 X_TestFree = TestDataFree[:,0:num_input]
 Y_TestFree = TestDataFree[:,-num_output:]

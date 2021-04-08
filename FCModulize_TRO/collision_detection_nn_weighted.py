@@ -264,13 +264,13 @@ data_load_finish_time = time.time()
 print("\n\n\n\n Data Load Time: ", data_load_finish_time-data_load_start_time)
 
 # Load Validation Data in Memory
-ValidationData = pd.read_csv('../data_tro/ValidationData4.csv').to_numpy().astype('float32')
+ValidationData = pd.read_parquet('../data_tro/ValidationData4.parquet').to_numpy().astype('float32')
 X_validation = ValidationData[:,0:num_input]
 Y_validation = ValidationData[:,-num_output:]
 Weight_validation = np.ones([Y_validation.shape[0],2])
 
 # Load Test Data
-TestData = pd.read_csv('../data_tro/TestingDataCollision4.csv').to_numpy().astype('float32')
+TestData = pd.read_parquet('../data_tro/TestingDataCollision4.parquet').to_numpy().astype('float32')
 X_Test = TestData[:,0:num_input]
 Y_Test = TestData[:,-num_output:]
 JTS = TestData[:,num_input]
@@ -278,7 +278,7 @@ DOB = TestData[:,num_input+1]
 Weight_Test = np.ones([Y_Test.shape[0],2])
 
 # Load Test Free Data
-TestDataFree = pd.read_csv('../data_tro/TestingDataFree4.csv').to_numpy().astype('float32')
+TestDataFree = pd.read_parquet('../data_tro/TestingDataFree4.parquet').to_numpy().astype('float32')
 X_TestFree = TestDataFree[:,0:num_input]
 Y_TestFree = TestDataFree[:,-num_output:]
 Weight_TestFree = np.ones([Y_TestFree.shape[0],2])

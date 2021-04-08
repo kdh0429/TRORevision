@@ -220,7 +220,7 @@ Trainiterator = tf.compat.v1.data.make_initializable_iterator(TrainData)
 train_batch_x, train_batch_y = Trainiterator.get_next()
 
 # Load Validation Data in Memory
-ValidationData = pd.read_csv('../data_tro/ValidationData4.csv').to_numpy().astype('float32')
+ValidationData = pd.read_parquet('../data_tro/ValidationData4.parquet').to_numpy().astype('float32')
 X_validation = ValidationData[:,0:num_input]
 Y_validation = ValidationData[:,-num_output:]
 
@@ -302,7 +302,7 @@ if wandb_use == True:
 
 
 # Test Evaluation
-TestData = pd.read_csv('../data_tro/TestingDataCollision4.csv').to_numpy().astype('float32')
+TestData = pd.read_parquet('../data_tro/TestingDataCollision4.parquet').to_numpy().astype('float32')
 X_Test = TestData[:,0:num_input]
 Y_Test = TestData[:,-num_output:]
 JTS = TestData[:,num_input]
@@ -374,7 +374,7 @@ print('DOB Detection Time: ', sum(detection_time_DoB)/(collision_cnt - collision
 
 
 # Free motion Evaluation
-TestDataFree = pd.read_csv('../data_tro/TestingDataFree4.csv').to_numpy().astype('float32')
+TestDataFree = pd.read_parquet('../data_tro/TestingDataFree4.parquet').to_numpy().astype('float32')
 X_TestFree = TestDataFree[:,0:num_input]
 Y_TestFree = TestDataFree[:,-num_output:]
 accu_test, reg_test, cost_test, hypofree  = m1.get_mean_error_hypothesis(X_TestFree, Y_TestFree)

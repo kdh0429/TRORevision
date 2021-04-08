@@ -29,7 +29,7 @@ parser.add_argument('--use_narrow_structure', type=str2bool, default=False) # Us
 parser.add_argument('--use_ee_acc_data', type=str2bool, default=False) # Use end effector acceleration data
 parser.add_argument('--use_tf_record', type=str2bool, default=False) # Use tf record format for large data
 parser.add_argument('--learning_rate', type=float, default=0.00001) # Learning rate
-parser.add_argument('--training_epoch', type=int, default=1000) # Training epoch
+parser.add_argument('--training_epoch', type=int, default=500) # Training epoch
 parser.add_argument('--batch_size', type=int, default=1000) # Size of batch
 parser.add_argument('--drop_out_rate', type=float, default=0.0) # Drop out rate
 parser.add_argument('--regularization_factor', type=float, default=0.0000001) # Regularization
@@ -46,8 +46,8 @@ if wandb_use == True:
 
 # Number of Input/Output Data
 time_step = 5
-num_data_type = 6
-num_one_joint_data = time_step * (num_data_type-1)
+num_joint_data_type = 2
+num_one_joint_data = time_step * num_joint_data_type
 num_joint = 6
 if args.use_ee_acc_data is False :
     num_input = num_one_joint_data*num_joint # joint data
@@ -251,7 +251,7 @@ if args.use_tf_record is True:
     TrainData = TrainData.map(parse_proto)
 else:
     # Load Training Data in Memory
-    TrainDataRaw = pd.read_parquet('../data_tro/TrainingData4.parquet').to_numpy().astype('float32')
+    TrainDataRaw = pd.read_parquet('../data_tro/TrainingData1.parquet').to_numpy().astype('float32')
     TrainData = tf.data.Dataset.from_tensor_slices((TrainDataRaw[:,0:num_input], TrainDataRaw[:,-num_output:]))
     TrainData = TrainData.shuffle(buffer_size=100*batch_size)
 TrainData = TrainData.batch(batch_size)
@@ -260,19 +260,19 @@ Trainiterator = tf.compat.v1.data.make_initializable_iterator(TrainData)
 train_batch_x, train_batch_y = Trainiterator.get_next()
 
 # Load Validation Data in Memory
-ValidationData = pd.read_csv('../data_tro/ValidationData4.csv').to_numpy().astype('float32')
+ValidationData = pd.read_parquet('../data_tro/ValidationData1.parquet').to_numpy().astype('float32')
 X_validation = ValidationData[:,0:num_input]
 Y_validation = ValidationData[:,-num_output:]
 
 # Load Test Data
-TestData = pd.read_csv('../data_tro/TestingDataCollision4.csv').to_numpy().astype('float32')
+TestData = pd.read_parquet('../data_tro/TestingDataCollision1.parquet').to_numpy().astype('float32')
 X_Test = TestData[:,0:num_input]
 Y_Test = TestData[:,-num_output:]
 JTS = TestData[:,num_input]
 DOB = TestData[:,num_input+1]
 
 # Load Test Free Data
-TestDataFree = pd.read_csv('../data_tro/TestingDataFree4.csv').to_numpy().astype('float32')
+TestDataFree = pd.read_parquet('../data_tro/TestingDataFree1.parquet').to_numpy().astype('float32')
 X_TestFree = TestDataFree[:,0:num_input]
 Y_TestFree = TestDataFree[:,-num_output:]
 
@@ -393,8 +393,9 @@ print('Learning Finished!')
 
 # Save Model
 saver = tf.compat.v1.train.Saver()
-saver.save(sess,'model/model.ckpt')
+model_file_name = 'model/' + 'num_input_' + str(num_input) + '_' + str(int(time.time())) + '.ckpt'
+saver.save(sess, model_file_name)
 
 if wandb_use == True:
-    saver.save(sess, os.path.join(wandb.run.dir, 'model/model.ckpt'))
+    saver.save(sess, os.path.join(wandb.run.dir, model_file_name))
     wandb.config.elapsed_time = elapsed_time
